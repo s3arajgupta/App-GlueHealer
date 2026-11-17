@@ -3,11 +3,15 @@
 **Autonomous, self-healing agentic AI system that diagnoses, patches, and recovers failing AWS Glue ETL jobs — with human approval, zero destructive overwrites, and stateful cyclic feedback.**
 
 [![CI Test Suite](https://github.com/s3arajgupta/App-GlueHealer/actions/workflows/ci.yml/badge.svg)](https://github.com/s3arajgupta/App-GlueHealer/actions)
+[![Live Demo](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://gluehealer.streamlit.app)
 ![Python](https://img.shields.io/badge/python-3.11%20%7C%203.12%20%7C%203.14-blue)
 ![LangGraph](https://img.shields.io/badge/Orchestration-LangGraph%20State%20Machine-orange)
 ![AWS](https://img.shields.io/badge/AWS-Glue%20%7C%20S3%20%7C%20CloudWatch-232F3E?logo=amazon-aws)
-![UI](https://img.shields.io/badge/UI-Streamlit%20Control%20Center-FF4B4B?logo=streamlit)
 ![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)
+
+<p align="center">
+  <img src="assets/demo.gif" alt="GlueHealer Autonomous Self-Healing Terminal Showcase" width="850">
+</p>
 
 ---
 
@@ -18,34 +22,26 @@
 
 ---
 
-## ⚡ Quickstart: Showcase Commands
+## ⚡ Quickstart & Live Demo
 
-Try GlueHealer immediately with zero setup or run it directly against your AWS account:
+🌐 **Live Web Application:** [gluehealer.streamlit.app](https://gluehealer.streamlit.app)
+*(Interactive control center with pre-loaded production incidents, visual diff reviewer, and human approval gates)*
 
-### 1. 🎭 Instant 30-Second Showcase (Zero API Keys / Offline)
-Recruiters and interviewers can run the full agent pipeline in 0.5 seconds without any API keys or AWS setup:
+---
+
+### 1. 🎭 Offline Simulation Demo
+Run the end-to-end self-healing cycle locally with built-in simulation (no external API keys required):
 ```bash
 python -m gluehealer demo --auto-approve
 ```
 
-### 2. 🎨 Interactive Visual Control Center (Streamlit Dashboard)
-Launch the interactive web UI featuring pre-loaded failure scenarios (Schema Drift, Zero Division, Type Mismatch), syntax-highlighted diffs, and live Human Approval gates:
+### 2. 🎨 Local Streamlit Dashboard
+Launch the control center web UI locally:
 ```bash
 streamlit run streamlit_app.py
 # or
 python -m gluehealer.ui
 ```
-
-#### 🌐 Deploy to Streamlit Community Cloud (Free 1-Click Hosting)
-You can host this live interactive dashboard for recruiters and interviewers for free on [Streamlit Community Cloud](https://share.streamlit.io/):
-1. Push your repository to GitHub: `git push origin main`
-2. Go to [share.streamlit.io](https://share.streamlit.io/) and click **New App**
-3. Select your repository, branch `main`, and main file path `streamlit_app.py`
-4. *(Optional)* In **App Settings ➔ Secrets**, paste:
-   ```toml
-   OPENROUTER_API_KEY = "your-key-here"
-   ```
-5. Click **Deploy!** — your portfolio now has a live, publicly accessible URL.
 
 ### 3. 💻 Local Pipeline Self-Healing
 Run the live LLM healing pipeline against local Python ETL scripts:
