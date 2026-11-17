@@ -3,6 +3,7 @@ GlueHealer CLI entrypoint.
 
 Usage:
     python -m gluehealer <script>                     # heal a broken script
+    python -m gluehealer <script> --demo              # run offline zero-API demo
     python -m gluehealer <script> --max-retries 5     # custom retry limit
     python -m gluehealer <script> --job-name my-job   # custom job name
 """
@@ -20,7 +21,17 @@ def main() -> None:
         prog="gluehealer",
         description="GlueHealer — self-healing agent for failed ETL jobs",
     )
-    parser.add_argument("script", help="Path to the Python script to heal")
+    parser.add_argument(
+        "script",
+        nargs="?",
+        default="sample_jobs/broken_etl.py",
+        help="Path to the Python script to heal (default: sample_jobs/broken_etl.py)",
+    )
+    parser.add_argument(
+        "--demo",
+        action="store_true",
+        help="Run in offline showcase demo mode (requires zero API keys)",
+    )
     parser.add_argument(
         "--max-retries",
         type=int,
@@ -38,12 +49,20 @@ def main() -> None:
     )
     args = parser.parse_args()
 
+    # Handle 'demo' keyword as positional script
+    if args.script == "demo":
+        args.script = "sample_jobs/broken_etl.py"
+        args.demo = True
+
     script_path = os.path.abspath(args.script)
     job_name = args.job_name or os.path.splitext(os.path.basename(script_path))[0]
 
     if not os.path.exists(script_path):
         print(f"❌ Script not found: {script_path}")
         sys.exit(1)
+
+    if args.demo:
+        print("🎭 Running GlueHealer in OFFLINE DEMO mode (Zero API keys needed)")
 
     # ── Step 1: Run the job to see if it actually fails ────────────
     print(f"🔍 Running job '{job_name}' to check for failures...")
@@ -80,6 +99,7 @@ def main() -> None:
         "retry_count": 0,
         "max_retries": args.max_retries,
         "auto_approve": args.auto_approve,
+        "demo_mode": args.demo,
         "status": "failed",
         "run_output": "",
     }

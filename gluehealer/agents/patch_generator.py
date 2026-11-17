@@ -27,30 +27,40 @@ def _strip_markdown_fences(text: str) -> str:
 def patch_generator(state: HealerState) -> dict:
     print("🩹 Patch Generator: calling LLM to generate corrected script...", flush=True)
 
-    raw = chat_completion([
-        {
-            "role": "system",
-            "content": (
-                "You are an expert code repair agent. "
-                "Generate the COMPLETE corrected Python script. "
-                "Output ONLY valid Python code — no markdown fences, "
-                "no explanations, no commentary. "
-                "The output must be directly executable."
-            ),
-        },
-        {
-            "role": "user",
-            "content": (
-                f"Fix this script based on the root cause analysis below.\n\n"
-                f"## Original Script\n```python\n{state['script_content']}\n```\n\n"
-                f"## Root Cause Analysis\n{state['rca_result']}\n\n"
-                "Output the complete corrected Python script. "
-                "No markdown, no explanations — just the code."
-            ),
-        },
-    ])
-
-    corrected = _strip_markdown_fences(raw)
+    if state.get("demo_mode"):
+        corrected = state["script_content"].replace('record["unit_price"]', 'record["price"]')
+        if 'record["unit_price"]' not in state["script_content"]:
+            corrected = (
+                state["script_content"]
+                .replace("record['is_active']", "record.get('is_active', True)")
+                .replace("sessions = row['sessions']", "sessions = max(row['sessions'], 1)")
+            )
+        print("   ✅ Patch generated (demo mode)")
+    else:
+        raw = chat_completion([
+            {
+                "role": "system",
+                "content": (
+                    "You are an expert code repair agent. "
+                    "Generate the COMPLETE corrected Python script. "
+                    "Output ONLY valid Python code — no markdown fences, "
+                    "no explanations, no commentary. "
+                    "The output must be directly executable."
+                ),
+            },
+            {
+                "role": "user",
+                "content": (
+                    f"Fix this script based on the root cause analysis below.\n\n"
+                    f"## Original Script\n```python\n{state['script_content']}\n```\n\n"
+                    f"## Root Cause Analysis\n{state['rca_result']}\n\n"
+                    "Output the complete corrected Python script. "
+                    "No markdown, no explanations — just the code."
+                ),
+            },
+        ])
+        corrected = _strip_markdown_fences(raw)
+        print("   ✅ Patch generated")
 
     # Compute unified diff for human review
     orig_lines = state["script_content"].splitlines(keepends=True)
@@ -65,8 +75,6 @@ def patch_generator(state: HealerState) -> dict:
 
     if not patch_display:
         patch_display = "(no visible diff — LLM returned identical code)"
-
-    print("   ✅ Patch generated")
 
     return {
         "corrected_script": corrected,

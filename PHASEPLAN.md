@@ -51,11 +51,12 @@ For Phase 2 (AWS Integration), GlueHealer interacts with four core AWS services:
                             │
                             ▼
 ┌────────────────────────────────────────────────────────┐
-│  PHASE 3: Interactive Visual Approval Dashboard        │  🎨
-│  • Streamlit Web Application                           │
-│  • Side-by-side syntax-highlighted code diff viewer    │
-│  • One-click Approve / Reject with Feedback box        │
-│  • Real-time retry logs & healing timeline             │
+│  PHASE 3: Interactive Visual Approval Dashboard        │  ✅ COMPLETED
+│  • Streamlit Web Application (gluehealer/ui/app.py)    │
+│  • Rich mock scenarios (Schema drift, ZeroDiv, TypeErr)│
+│  • Side-by-side & unified syntax-highlighted diff      │
+│  • One-click Approve / Reject with Feedback loopback   │
+│  • Offline CLI Demo Mode (python -m gluehealer demo)   │
 └───────────────────────────┬────────────────────────────┘
                             │
                             ▼
@@ -133,14 +134,16 @@ For Phase 2 (AWS Integration), GlueHealer interacts with four core AWS services:
 | **Amazon Cognito** *(Optional Security)* | Role-based user authentication (SSO/OAuth) so only authorized data engineers can approve patches | Free Tier (first 50,000 MAUs free) |
 | **Amazon DynamoDB** *(Optional Audit)* | Audit log recording who approved/rejected each patch, reviewer notes, and timestamps | Free Tier (25 GB free forever) |
 
-#### Checkpoint 3.1: Streamlit Web UI (`gluehealer/ui/app.py`)
-- **Job Overview**: List detected failed Glue jobs or select local files.
-- **Root Cause Card**: Formatted diagnosis explaining why the failure occurred.
-- **Visual Diff Viewer**: Color-coded side-by-side or unified diff showing deletions in red and additions in green.
-- **Human Approval Controls**:
-  - Big green `Approve & Deploy` button.
-  - Red `Reject` button with a mandatory feedback text field (`"Please use .get() instead of changing the column name"`).
-- **Execution Timeline**: Visual tracker showing Attempt 1 → Failed → Re-analyzed → Attempt 2 → Healed.
+#### Checkpoint 3.1: Streamlit Web UI (`gluehealer/ui/app.py`) ✅
+- [x] **Zero-Setup Simulation Mode**: 3 authentic enterprise failure scenarios (Schema Drift `KeyError`, Metrics `ZeroDivisionError`, Cast `ValueError`).
+- [x] **Job Overview & CloudWatch Log Viewer**: Real-time stack trace inspection for failed Glue runs.
+- [x] **Root Cause Card**: Formatted diagnosis explaining why the failure occurred with recommended fix strategy.
+- [x] **Visual Diff Viewer**: Color-coded unified diff view showing removals in red and additions in green.
+- [x] **Human Approval Gate**:
+  - [x] Big green `Approve & Deploy Patch` button.
+  - [x] Red `Reject & Request Revision` button with feedback input text box that loops back to Context Builder.
+- [x] **Execution Timeline & Audit**: Visual tracker showing Attempt 1 → Human Critique → Attempt 2 → Healed.
+- [x] **CLI Offline Demo**: `python -m gluehealer demo` runs zero-API instant demonstration.
 
 ---
 

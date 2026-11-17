@@ -28,6 +28,7 @@ class HealerState(TypedDict, total=False):
     # Human Approval
     human_feedback: str
     auto_approve: bool
+    demo_mode: bool
     status: str                   # failed | analyzing | patch_ready | approved | rejected | applied | healed | escalated
 
     # Apply Patch

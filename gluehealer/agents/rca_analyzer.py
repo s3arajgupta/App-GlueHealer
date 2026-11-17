@@ -42,6 +42,18 @@ def rca_analyzer(state: HealerState) -> dict:
 
     print("🔍 RCA Analyzer: calling LLM for root cause analysis...", flush=True)
 
+    if state.get("demo_mode"):
+        rca = (
+            "### 1. Root Cause\n"
+            "KeyError: 'unit_price' occurred because the input CSV schema uses header 'price' instead of 'unit_price'.\n\n"
+            "### 2. Location\n"
+            "Line 30: record['unit_price']\n\n"
+            "### 3. Fix Strategy\n"
+            "Update dictionary indexing from record['unit_price'] to record['price']."
+        )
+        print("   ✅ RCA complete (demo mode)", flush=True)
+        return {"rca_result": rca}
+
     rca = chat_completion([
         {
             "role": "system",
