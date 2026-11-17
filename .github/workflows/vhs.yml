@@ -1,0 +1,34 @@
+name: Generate VHS Terminal Demo GIF
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  render-tape:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Dependencies
+        run: |
+          pip install -r requirements.txt
+
+      - name: Render VHS Tape
+        uses: charmbracelet/vhs-action@v2
+        with:
+          path: "demo.tape"
+
+      - name: Commit Rendered GIF
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "chore(assets): render terminal showcase demo.gif [skip ci]"
+          file_pattern: "assets/demo.gif"
