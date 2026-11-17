@@ -125,6 +125,12 @@ with st.sidebar:
     st.title("🩹 GlueHealer")
     st.caption("Agentic Self-Healing for AWS Glue ETL Pipelines")
 
+    col_gh, col_spec = st.columns(2)
+    with col_gh:
+        st.link_button("⭐ GitHub", "https://github.com/s3arajgupta/App-GlueHealer", use_container_width=True)
+    with col_spec:
+        st.link_button("📐 Specs", "https://github.com/s3arajgupta/App-GlueHealer/blob/main/PHASEPLAN.md", use_container_width=True)
+
     st.divider()
 
     mode_options = [
@@ -214,22 +220,51 @@ with st.sidebar:
 
 
 # --- Main Dashboard Header ---
-st.markdown('<div class="main-header">🩹 GlueHealer Control Center</div>', unsafe_allow_html=True)
-st.markdown(
-    '<div class="sub-header">LangGraph-Orchestrated Self-Healing System for AWS Glue ETL Pipelines</div>',
-    unsafe_allow_html=True,
-)
+col_head_left, col_head_right = st.columns([3, 1])
+with col_head_left:
+    st.markdown('<div class="main-header">🩹 GlueHealer Control Center</div>', unsafe_allow_html=True)
+    st.markdown(
+        '<div class="sub-header">LangGraph-Orchestrated Self-Healing System for AWS Glue ETL Pipelines</div>',
+        unsafe_allow_html=True,
+    )
+    st.markdown(
+        """
+        <span class="badge-pill badge-aws">AWS Glue & S3</span>
+        <span class="badge-pill badge-agent">LangGraph State Machine</span>
+        <span class="badge-pill badge-safe">Zero-Overwrite Versioning</span>
+        <span class="badge-pill badge-agent">Human-in-the-Loop Gate</span>
+        """,
+        unsafe_allow_html=True,
+    )
+with col_head_right:
+    st.write("")
+    st.link_button("📂 View on GitHub", "https://github.com/s3arajgupta/App-GlueHealer", use_container_width=True)
+    st.link_button("🏗️ Architecture Docs", "https://github.com/s3arajgupta/App-GlueHealer/blob/main/PHASEPLAN.md", use_container_width=True)
 
-st.markdown(
-    """
-    <span class="badge-pill badge-aws">AWS Glue & S3</span>
-    <span class="badge-pill badge-agent">LangGraph State Machine</span>
-    <span class="badge-pill badge-safe">Zero-Overwrite Versioning</span>
-    <span class="badge-pill badge-agent">Human-in-the-Loop Gate</span>
-    """,
-    unsafe_allow_html=True,
-)
 st.write("")
+
+project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+workflow_img_path = os.path.join(project_root, "GlueHealer workflow.png")
+
+with st.expander("🏗️ Architecture & Multi-Agent Flow Diagram", expanded=False):
+    if os.path.exists(workflow_img_path):
+        st.image(workflow_img_path, caption="GlueHealer Cyclic State Machine Workflow", use_container_width=True)
+    else:
+        st.image(
+            "https://raw.githubusercontent.com/s3arajgupta/App-GlueHealer/main/GlueHealer%20workflow.png",
+            caption="GlueHealer Cyclic State Machine Workflow",
+            use_container_width=True,
+        )
+    st.markdown(
+        """
+        ### 🔄 Cyclic State Machine Principles
+        1. **Zero Destructive Overwrites:** Original ETL scripts are never modified in place. Versions are saved to `gluehealer-versions/<job>/v<N>.py` with rollback pointers.
+        2. **Stateful Re-entry:** When a patch fails or is rejected with human feedback, execution routes back to the **Context Builder** (not directly to RCA), ensuring fresh context is re-gathered with cumulative history.
+        3. **Human-in-the-Loop Gate:** Autonomous diagnosis paired with mandatory engineer review before deployment.
+        
+        👉 For full technical specifications and phase planning, see the [Architecture Vision & Phase Plan](https://github.com/s3arajgupta/App-GlueHealer/blob/main/PHASEPLAN.md).
+        """
+    )
 
 with st.expander("ℹ️ How to Explore This Interactive Demo (Quick Guide)", expanded=False):
     st.markdown(
@@ -505,7 +540,9 @@ st.divider()
 st.markdown(
     """
     <div style="text-align: center; color: #94A3B8; font-size: 0.85rem;">
-        GlueHealer — Autonomous Self-Healing Agent for AWS Glue Pipelines • MIT License
+        GlueHealer — Autonomous Self-Healing Agent for AWS Glue Pipelines • MIT License • 
+        <a href="https://github.com/s3arajgupta/App-GlueHealer" target="_blank" style="color: #2563EB; text-decoration: none; font-weight: 600;">GitHub Repository</a> • 
+        <a href="https://github.com/s3arajgupta/App-GlueHealer/blob/main/PHASEPLAN.md" target="_blank" style="color: #2563EB; text-decoration: none; font-weight: 600;">Architecture Vision & Phase Plan</a>
     </div>
     """,
     unsafe_allow_html=True,
