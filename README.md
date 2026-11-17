@@ -164,7 +164,7 @@ App-GlueHealer/
 │   ├── test_aws_adapters.py     # S3 URI parsing & CloudWatch noise extraction
 │   └── test_graph_state_machine.py # State machine transitions & escalation
 ├── requirements.txt             # Project dependencies
-├── PHASEPLAN.md                 # Project roadmap & implementation log
+├── streamlit_app.py             # Streamlit Community Cloud entrypoint
 └── README.md                    # Project documentation
 ```
 
@@ -206,12 +206,14 @@ VERSIONS_DIR=job_versions
 
 ---
 
-## 🗺️ Project Roadmap
+## 🗺️ Feature Roadmap
 
-- [x] **Phase 1: Local Agent Engine & Cyclic Graph** — State schema, local tools, LangGraph state machine, sample broken jobs.
-- [x] **Phase 2: AWS Cloud Backend Integration** — Boto3 adapters (`S3ScriptStore`, `CloudWatchLogFetcher`, `GlueJobRunner`), `--aws` CLI.
-- [x] **Phase 3: Interactive Visual Approval Dashboard** — Streamlit Control Center with mock scenarios, visual diff viewer, and instant offline demo.
-- [ ] **Phase 4: Autonomous Cloud Triggers & Rollback** — EventBridge event rule triggering headless healing Lambda upon `Glue Job FAILED`.
+- [x] **Cyclic Multi-Agent State Machine** — Stateful workflow with cumulative context and loopback routing for rejected patches.
+- [x] **AWS Cloud Integration** — Boto3 adapters for S3 script versioning, CloudWatch log filtering, and Glue job execution.
+- [x] **Interactive Web Control Center** — Streamlit app with scenario simulations, visual diff review, and live human approval gates.
+- [x] **Automated Test Suite** — Pytest suite with CI workflow validating state transitions and cloud tools.
+- [ ] **EventBridge Triggers** — Headless Lambda invocation on AWS Glue `FAILED` state change events.
+- [ ] **Infrastructure Parameter Tuning** — Automated DPU and memory adjustments for Out-of-Memory (OOM) failures.
 
 ---
 
