@@ -1,0 +1,17 @@
+# Environment
+.env
+__pycache__/
+*.pyc
+*.pyo
+
+# GlueHealer runtime
+job_versions/
+sample_jobs/output/
+
+# IDE
+.vscode/
+.idea/
+
+# Virtual env
+venv/
+.venv/

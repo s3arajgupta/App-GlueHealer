@@ -8,7 +8,7 @@ GlueHealer uses a LangGraph-orchestrated multi-agent pipeline to fetch error log
 
 ## 🏗️ Architecture
 
-![GlueHealer Architecture](AgenticAI.drawio.png)
+![GlueHealer Architecture](<GlueHealer workflow.png>)
 
 ### High-Level Flow
 
