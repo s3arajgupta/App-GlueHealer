@@ -31,9 +31,9 @@ class JobRunner(ABC):
     """Runs an ETL job and returns its result (Glue in production, subprocess locally)."""
 
     @abstractmethod
-    def run_job(self, script_path: str) -> Tuple[bool, str, str]:
+    def run_job(self, script_path: str, config: dict | None = None) -> Tuple[bool, str, str]:
         """
-        Execute the job.
+        Execute the job with optional resource configuration.
 
         Returns:
             (success, stdout, stderr)

@@ -352,5 +352,85 @@ if __name__ == "__main__":
 2026-11-17T09:43:04.810Z [INFO] Successfully processed 3 customer profile records (1 defaulted).
 2026-11-17T09:43:05.120Z [INFO] Written to Silver Delta table at s3://customer-lake/silver/customers/
 2026-11-17T09:43:05.900Z [INFO] Job run completed successfully with state SUCCEEDED."""
+    },
+
+    "oom_memory_exhaustion": {
+        "id": "oom_memory_exhaustion",
+        "title": "🔥 Clickstream PySpark ETL (YARN Out-Of-Memory Auto-Tuning)",
+        "job_name": "clickstream-hourly-enrichment",
+        "dpu": 2,
+        "glue_type": "Spark Streaming / Large Batch",
+        "cloudwatch_log_group": "/aws-glue/jobs/error",
+        "job_run_id": "jr_77de8812c3f4",
+        "s3_original_path": "s3://adtech-datalake/scripts/clickstream_enrichment.py",
+        "error_type": "Container killed by YARN for exceeding memory limits (Exit code 137)",
+        "summary": "Heavy traffic burst during flash sale campaign overwhelmed executor memory during shuffle partition join, triggering exit code 137.",
+        "raw_error_logs": """2026-11-18T05:10:14.120Z [INFO] Initializing AWS Glue Spark Session on 2 G.1X Workers (16 GB RAM per executor)
+2026-11-18T05:10:20.450Z [INFO] Reading 8.5 GB micro-batch from Kafka raw partition...
+2026-11-18T05:10:25.890Z [WARN] MemoryConsumer: Spark shuffle memory spilled 4.2 GB to disk
+2026-11-18T05:10:28.110Z [ERROR] Container killed by YARN for exceeding memory limits: 16.0 GB of 16.0 GB physical memory used.
+2026-11-18T05:10:28.115Z [ERROR] ExecutorLostFailure (executor 1 exited with exit code 137, Reason: Container killed by YARN for exceeding memory limits)
+2026-11-18T05:10:29.001Z [ERROR] Glue job execution failed with state FAILED.""",
+        "original_code": """# PySpark Clickstream Enrichment Job
+from pyspark.sql import SparkSession
+from pyspark.sql.functions import col, window
+
+def run_enrichment():
+    spark = SparkSession.builder.appName("ClickstreamEnrichment").getOrCreate()
+    
+    # 8.5 GB micro-batch with skewed join keys
+    raw_df = spark.read.parquet("s3://adtech-datalake/raw/clickstream/")
+    dim_users = spark.read.parquet("s3://adtech-datalake/dims/users/")
+    
+    # Skewed wide shuffle join causes memory spike
+    enriched = raw_df.join(dim_users, on="device_id", how="inner")
+    enriched.write.mode("overwrite").parquet("s3://adtech-datalake/silver/clickstream/")
+
+if __name__ == "__main__":
+    run_enrichment()
+""",
+        "rca_analysis": """### 🔍 Root Cause Analysis (Infrastructure Bottleneck)
+
+- **Failure Classification:** Infrastructure / Hardware Resource Exhaustion (`OOM / YARN Kill 137`)
+- **Fault Location:** AWS Glue Execution Layer (Worker Allocation: `WorkerType: G.1X`, 2 Workers)
+- **Root Cause:** A 4x traffic surge caused partition shuffle operations to exceed the 16 GB heap ceiling per executor. Code logic is 100% correct; failure is strictly memory-bound.
+- **Fix Strategy (Zero Code Changes):** Auto-tune AWS Glue resources:
+  - Upgrade `WorkerType` from `G.1X` (16 GB) ➔ `G.2X` (32 GB RAM per executor).
+  - Scale `NumberOfWorkers` from 2 ➔ 4 to parallelize partition shuffles and eliminate disk spill.
+""",
+        "diff_v1": """--- Current AWS Glue Job Configuration
++++ Auto-Tuned Resource Configuration
+- WorkerType: G.1X (4 vCPU, 16 GB RAM per executor)
++ WorkerType: G.2X (8 vCPU, 32 GB RAM per executor) [2x Memory Ceiling Allocated]
+- NumberOfWorkers: 2
++ NumberOfWorkers: 4 [Horizontal Parallelism Scale Factor]
+""",
+        "patched_code_v1": """# PySpark Clickstream Enrichment Job (Code untouched - Resources auto-tuned to G.2X / 4 Workers)
+from pyspark.sql import SparkSession
+from pyspark.sql.functions import col, window
+
+def run_enrichment():
+    spark = SparkSession.builder.appName("ClickstreamEnrichment").getOrCreate()
+    
+    raw_df = spark.read.parquet("s3://adtech-datalake/raw/clickstream/")
+    dim_users = spark.read.parquet("s3://adtech-datalake/dims/users/")
+    
+    enriched = raw_df.join(dim_users, on="device_id", how="inner")
+    enriched.write.mode("overwrite").parquet("s3://adtech-datalake/silver/clickstream/")
+
+if __name__ == "__main__":
+    run_enrichment()
+""",
+        "diff_v2_feedback": """--- Current AWS Glue Job Configuration
++++ Auto-Tuned Resource Configuration (Reviewer Adjusted)
+- WorkerType: G.1X
++ WorkerType: G.2X
+- NumberOfWorkers: 2
++ NumberOfWorkers: 6 [Additional partition parallelism requested]
+""",
+        "execution_log_healed": """2026-11-18T05:11:02.120Z [INFO] Submitting retried Glue Job Run with auto-tuned resources: WorkerType=G.2X, NumberOfWorkers=4
+2026-11-18T05:11:15.890Z [INFO] Processing 8.5 GB micro-batch on 4 G.2X workers (32 GB RAM each)
+2026-11-18T05:11:21.002Z [INFO] Shuffle completed with ZERO disk spill.
+2026-11-18T05:11:22.450Z [INFO] Job run completed successfully with state SUCCEEDED."""
     }
 }

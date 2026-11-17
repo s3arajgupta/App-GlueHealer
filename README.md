@@ -1,6 +1,6 @@
 # 🩹 GlueHealer
 
-**Autonomous, self-healing agentic AI system that diagnoses, patches, and recovers failing AWS Glue ETL jobs — with human approval, zero destructive overwrites, and stateful cyclic feedback.**
+**Autonomous, self-healing agentic AI system that diagnoses, patches, and recovers failing AWS Glue ETL jobs — with human approval, zero destructive overwrites, infrastructure auto-tuning, and stateful cyclic feedback.**
 
 [![CI Test Suite](https://github.com/s3arajgupta/App-GlueHealer/actions/workflows/ci.yml/badge.svg)](https://github.com/s3arajgupta/App-GlueHealer/actions)
 [![Live Demo](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://gluehealer.streamlit.app)
@@ -17,8 +17,8 @@
 
 ## 💡 The Problem & The Solution
 
-- **The Problem:** In enterprise data platforms, data engineers and on-call teams spend hours triaging trivial ETL pipeline failures caused by upstream schema drift (`KeyError`), dirty string casts (`ValueError`), or division by zero on empty partitions (`ZeroDivisionError`).
-- **The Solution:** GlueHealer autonomously ingests CloudWatch error logs, performs root-cause analysis (RCA), generates non-destructive unified diffs, presents them for human review, and re-runs the job. If a patch fails or is rejected with reviewer feedback, the **cyclic state machine** routes back to the Context Builder with cumulative history to produce a refined fix without hallucinating or repeating errors.
+- **The Problem:** In enterprise data platforms, data engineers and on-call teams spend hours triaging repetitive ETL pipeline failures caused by upstream schema drift (`KeyError`), dirty string casts (`ValueError`), division by zero on empty partitions (`ZeroDivisionError`), or infrastructure resource exhaustion (Spark Out-of-Memory / YARN container killed `exit code 137`).
+- **The Solution:** GlueHealer autonomously ingests CloudWatch error logs, performs root-cause analysis (RCA), classifies whether a failure is a code bug or an infrastructure bottleneck, generates non-destructive code patches or auto-tunes Glue worker configurations (`WorkerType: G.1X` ➔ `G.2X`, horizontal partition scaling), presents diffs for human review, and safely retries the job. If a patch fails or is rejected with reviewer feedback, the **cyclic state machine** routes back to the Context Builder with cumulative history to produce a refined fix without hallucinating or repeating errors.
 
 ---
 
@@ -56,14 +56,27 @@ python -m gluehealer sample_jobs/broken_etl.py --auto-approve
 ### 4. ☁️ AWS Cloud Production Mode
 Triage and heal live AWS Glue jobs running in your AWS account:
 ```bash
-# Ingests CloudWatch logs, versions script in S3, retries Glue job
+# Ingests CloudWatch logs, versions script in S3, auto-tunes resources, retries Glue job
 python -m gluehealer --aws --job-name orders-bronze-to-silver
 
 # Target a specific historical failed run ID
 python -m gluehealer --aws --job-name orders-bronze-to-silver --run-id jr_8f39b1a03e
 ```
 
-### 5. 🧪 Run Automated Test Suite
+### 5. 🔙 One-Click Rollback
+Instantly revert script pointers and worker configurations to the original baseline or a historical snapshot:
+```bash
+# Local mode: revert pointer to original baseline
+python -m gluehealer rollback
+
+# Local mode: revert to specific snapshot version
+python -m gluehealer rollback --to-version v1
+
+# AWS Cloud mode: revert Glue job script location and restore baseline worker type
+python -m gluehealer rollback --aws --job-name orders-bronze-to-silver --to-s3-path s3://corporate-datalake-prod/scripts/orders_bronze_silver.py --restore-worker-type G.1X --restore-num-workers 2
+```
+
+### 6. 🧪 Run Automated Test Suite
 ```bash
 pytest tests/ -v
 ```
@@ -85,7 +98,7 @@ Failed Glue Job ──► Context Builder ──► RCA Analyzer ──► Patch
                           │            (✅ Approved)
                           │                   │
                           │                   ▼
-                          │              Apply Patch (S3 v1.py)
+                          │              Apply Patch (S3 v1.py / Glue Config)
                           │                   │
                           │                   ▼
                           │              Retry Runner
@@ -100,11 +113,11 @@ Failed Glue Job ──► Context Builder ──► RCA Analyzer ──► Patch
 |---|---|
 | **Orchestrator** | LangGraph-style cyclic state machine managing state transitions and loopback routing |
 | **Context Builder** | Gathers script source, CloudWatch error logs, metadata, and historical patch critiques |
-| **RCA Analyzer** | Pinpoints exact fault lines, failure classifications, and prescribes a precise fix strategy |
-| **Patch Generator** | Produces syntactically valid Python code and generates colorized unified diffs |
-| **Human Approval** | Gatekeeper presenting diffs for approval or collecting reviewer feedback to guide revision |
-| **Apply Patch** | Saves non-destructive versioned scripts (`v1.py`, `v2.py`) to S3 or local storage |
-| **Retry Runner** | Re-executes the ETL job, monitors status, updates telemetry, and enforces retry caps |
+| **RCA Analyzer** | Pinpoints fault lines, classifies failure type (**Code Bug** vs. **Infrastructure Bottleneck / OOM**), and prescribes fix strategy |
+| **Patch Generator** | Produces syntactically valid Python code diffs OR auto-tunes AWS Glue resource configurations (`WorkerType: G.2X`, scaled workers) |
+| **Human Approval** | Gatekeeper presenting diffs and configuration changes for approval or collecting reviewer feedback to guide revision |
+| **Apply Patch** | Saves non-destructive versioned scripts (`v1.py`, `v2.py`) to S3/local storage and stages updated Glue configurations |
+| **Retry Runner** | Re-executes the ETL job with tuned parameters, monitors status, updates telemetry, and enforces retry caps |
 
 ---
 
@@ -113,10 +126,11 @@ Failed Glue Job ──► Context Builder ──► RCA Analyzer ──► Patch
 | Guardrail | Engineering Implementation |
 |---|---|
 | **Zero In-Place Overwrites** | Original scripts are never modified. All patches are saved as versioned artifacts (`s3://.../gluehealer-versions/<job>/v<N>.py`). |
-| **Human-in-the-Loop Gate** | No code is executed without explicit human authorization (unless `--auto-approve` is passed). |
+| **Infrastructure Auto-Tuning** | Out-of-memory and YARN kills are handled via resource scaling (`G.1X` ➔ `G.2X`, horizontal scaling) rather than mutating valid script code. |
+| **Human-in-the-Loop Gate** | No code or infrastructure update is executed without explicit human authorization (unless `--auto-approve` is passed). |
 | **Cyclic Critique Feedback** | Rejections or failed retries re-enter the Context Builder with cumulative history so the LLM learns from mistakes. |
 | **Retry & Cost Caps** | Enforces a hard limit on retries (default: 3) to prevent runaway cloud or LLM billing. |
-| **Instant Rollback** | Job configuration can be reverted to original S3 script paths at any point. |
+| **One-Click Instant Rollback** | Job configuration and script pointers can be rolled back to the original baseline or historical snapshot at any point (`python -m gluehealer rollback`). |
 
 ---
 
@@ -128,37 +142,38 @@ App-GlueHealer/
 │   └── ci.yml                   # Automated Pytest CI workflow
 ├── gluehealer/
 │   ├── __init__.py
-│   ├── __main__.py              # Unified CLI entrypoint (Local & AWS modes)
+│   ├── __main__.py              # Unified CLI entrypoint (Local, AWS, and Rollback modes)
 │   ├── config.py                # Environment & LLM configuration
 │   ├── graph.py                 # LangGraph cyclic state machine
-│   ├── state.py                 # Typed shared state schema
+│   ├── state.py                 # Typed shared state schema (code + infrastructure)
 │   ├── agents/                  # Multi-agent specialists
 │   │   ├── context_builder.py   # Context aggregation & history
-│   │   ├── rca_analyzer.py      # Root cause diagnosis
-│   │   ├── patch_generator.py   # Unified diff & code repair
+│   │   ├── rca_analyzer.py      # Root cause diagnosis & OOM classification
+│   │   ├── patch_generator.py   # Unified diff & resource auto-tuning
 │   │   ├── human_approval.py    # Human approval prompt gate
-│   │   ├── apply_patch.py       # Non-destructive versioning
+│   │   ├── apply_patch.py       # Non-destructive versioning & config updates
 │   │   └── retry_runner.py      # Execution & retry monitoring
 │   ├── tools/
 │   │   ├── interface.py         # Abstract base classes (ScriptStore, JobRunner)
 │   │   ├── local/               # Local filesystem & subprocess execution
-│   │   │   ├── script_store.py
-│   │   │   └── job_runner.py
+│   │   │   ├── script_store.py  # Local versioning & rollback engine
+│   │   │   └── job_runner.py    # Local subprocess execution
 │   │   └── aws/                 # AWS Cloud production adapters
-│   │       ├── s3_store.py        # S3 script reader & versioned writer
+│   │       ├── s3_store.py        # S3 script reader, versioned writer & lister
 │   │       ├── cloudwatch_logs.py # Log extractor & Spark noise filter
-│   │       └── glue_runner.py     # Glue start_job_run & polling
+│   │       └── glue_runner.py     # Glue start_job_run, resource tuning & rollback
 │   └── ui/                      # Streamlit interactive application
 │       ├── __init__.py
 │       ├── __main__.py          # Launcher: python -m gluehealer.ui
 │       ├── app.py               # Streamlit control center
-│       └── scenarios.py         # Real-world mock incident scenarios
+│       └── scenarios.py         # Real-world mock incident scenarios (including OOM)
 ├── sample_jobs/                 # Local demonstration ETL jobs
 │   ├── broken_etl.py            # KeyError: 'unit_price' schema drift
 │   └── broken_transform.py      # KeyError + ZeroDivisionError
 ├── tests/                       # Pytest automated test suite
 │   ├── test_aws_adapters.py     # S3 URI parsing & CloudWatch noise extraction
-│   └── test_graph_state_machine.py # State machine transitions & escalation
+│   ├── test_graph_state_machine.py # State machine transitions & escalation
+│   └── test_rollback_and_tuning.py # OOM classification, tuning & rollback verification
 ├── requirements.txt             # Project dependencies
 ├── streamlit_app.py             # Streamlit Community Cloud entrypoint
 └── README.md                    # Project documentation
@@ -207,9 +222,10 @@ VERSIONS_DIR=job_versions
 - [x] **Cyclic Multi-Agent State Machine** — Stateful workflow with cumulative context and loopback routing for rejected patches.
 - [x] **AWS Cloud Integration** — Boto3 adapters for S3 script versioning, CloudWatch log filtering, and Glue job execution.
 - [x] **Interactive Web Control Center** — Streamlit app with scenario simulations, visual diff review, and live human approval gates.
-- [x] **Automated Test Suite** — Pytest suite with CI workflow validating state transitions and cloud tools.
+- [x] **Infrastructure Parameter Tuning** — Automated DPU and memory adjustments (`WorkerType: G.1X` ➔ `G.2X`, horizontal scaling) for Out-of-Memory (OOM) failures.
+- [x] **One-Click Instant Rollback** — CLI and AWS command (`python -m gluehealer rollback`) to instantly restore script pointers and baseline resource configurations.
+- [x] **Automated Test Suite** — Pytest suite with CI workflow validating state transitions, rollback, and cloud tools.
 - [ ] **EventBridge Triggers** — Headless Lambda invocation on AWS Glue `FAILED` state change events.
-- [ ] **Infrastructure Parameter Tuning** — Automated DPU and memory adjustments for Out-of-Memory (OOM) failures.
 
 ---
 

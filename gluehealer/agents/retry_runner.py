@@ -20,7 +20,10 @@ def retry_runner(state: HealerState, job_runner: JobRunner) -> dict:
         f"(attempt {retry_count}/{max_retries})..."
     )
 
-    success, stdout, stderr = job_runner.run_job(state["script_path"])
+    success, stdout, stderr = job_runner.run_job(
+        state["script_path"],
+        config=state.get("proposed_job_config"),
+    )
 
     # Update the most recent patch outcome
     history = list(state.get("historical_patches", []))

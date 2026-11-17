@@ -20,10 +20,13 @@ class HealerState(TypedDict, total=False):
 
     # RCA output
     rca_result: str
+    failure_category: str         # "code" | "infrastructure"
 
     # Patch Generator output
     corrected_script: str
-    patch_display: str            # Unified diff for human review
+    patch_display: str            # Unified diff or config diff for human review
+    current_job_config: dict      # e.g. {"WorkerType": "G.1X", "NumberOfWorkers": 2}
+    proposed_job_config: dict     # e.g. {"WorkerType": "G.2X", "NumberOfWorkers": 4}
 
     # Human Approval
     human_feedback: str

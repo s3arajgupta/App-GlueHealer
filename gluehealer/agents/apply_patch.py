@@ -33,9 +33,14 @@ def apply_patch(state: HealerState, script_store: ScriptStore) -> dict:
 
     print(f"\n📦 Apply Patch: versioned copy → {patched_path}")
 
-    return {
+    updates = {
         "script_path": patched_path,       # Retry Runner will execute this
         "patched_script_path": patched_path,
         "historical_patches": history,
         "status": "applied",
     }
+    if state.get("proposed_job_config"):
+        updates["current_job_config"] = state["proposed_job_config"]
+        print(f"   ⚙️  Applied auto-tuned configuration: {state['proposed_job_config']}")
+
+    return updates

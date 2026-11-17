@@ -127,3 +127,20 @@ class S3ScriptStore(ScriptStore):
             raise RuntimeError(
                 f"Failed to upload versioned script to {target_uri} ({error_code}): {e}"
             ) from e
+
+    def list_versions(self, job_name: str, bucket: str | None = None) -> list[str]:
+        """List all versioned script S3 URIs created for a job."""
+        target_bucket = bucket or self.default_bucket
+        if not target_bucket:
+            return []
+        prefix = f"{self.versions_prefix}/{job_name}/"
+        try:
+            resp = self.s3.list_objects_v2(Bucket=target_bucket, Prefix=prefix)
+            contents = resp.get("Contents", [])
+            return [
+                f"s3://{target_bucket}/{obj['Key']}"
+                for obj in contents
+                if obj["Key"].endswith(".py")
+            ]
+        except ClientError:
+            return []

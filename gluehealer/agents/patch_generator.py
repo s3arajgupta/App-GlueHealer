@@ -1,8 +1,8 @@
 """
 Patch Generator Agent
 
-Calls the LLM to produce the corrected script based on the RCA output.
-Also computes a unified diff for human review.
+Produces non-destructive code patches (for code bugs) or auto-tuned resource
+configurations (for infrastructure bottlenecks such as OOM and timeouts).
 """
 import difflib
 import re
@@ -24,18 +24,73 @@ def _strip_markdown_fences(text: str) -> str:
     return "\n".join(lines).strip()
 
 
-def patch_generator(state: HealerState) -> dict:
-    print("🩹 Patch Generator: calling LLM to generate corrected script...", flush=True)
+def _generate_infra_patch(state: HealerState) -> dict:
+    """Auto-tune AWS Glue worker memory, worker count, or timeout parameters."""
+    current_cfg = state.get("current_job_config") or {
+        "WorkerType": "G.1X",
+        "NumberOfWorkers": 2,
+        "Timeout": 60,
+    }
 
+    current_worker = current_cfg.get("WorkerType", "G.1X")
+    current_num = current_cfg.get("NumberOfWorkers", 2)
+    current_timeout = current_cfg.get("Timeout", 60)
+
+    # Scale worker type: G.1X -> G.2X -> G.4X
+    worker_map = {"Standard": "G.1X", "G.1X": "G.2X", "G.2X": "G.4X", "G.4X": "G.8X"}
+    new_worker = worker_map.get(current_worker, "G.2X")
+    new_num = max(current_num * 2, 4)
+
+    error_str = state.get("error_logs", "").lower()
+    new_timeout = current_timeout * 2 if "timeout" in error_str else current_timeout
+
+    proposed_cfg = {
+        "WorkerType": new_worker,
+        "NumberOfWorkers": new_num,
+        "Timeout": new_timeout,
+    }
+
+    config_diff = (
+        "--- Current AWS Glue Job Configuration\n"
+        "+++ Auto-Tuned Resource Configuration\n"
+        f"- WorkerType: {current_worker} (16 GB RAM per executor)\n"
+        f"+ WorkerType: {new_worker} (32 GB RAM per executor) [2x Memory Ceiling Allocated]\n"
+        f"- NumberOfWorkers: {current_num}\n"
+        f"+ NumberOfWorkers: {new_num} [Horizontal Partition Parallelism Scaling]\n"
+    )
+    if new_timeout != current_timeout:
+        config_diff += (
+            f"- Timeout: {current_timeout} minutes\n"
+            f"+ Timeout: {new_timeout} minutes [Extended Execution Window]\n"
+        )
+
+    print("   ✅ Infrastructure configuration patch generated (Auto-Tuned G.2X / 4 Workers)")
+    return {
+        "corrected_script": state.get("script_content", ""),
+        "patch_display": config_diff,
+        "current_job_config": current_cfg,
+        "proposed_job_config": proposed_cfg,
+        "status": "patch_ready",
+    }
+
+
+def patch_generator(state: HealerState) -> dict:
+    print("🩹 Patch Generator: generating fix...", flush=True)
+
+    # Route infrastructure failures to resource auto-tuning
+    if state.get("failure_category") == "infrastructure":
+        return _generate_infra_patch(state)
+
+    # --- Code Bug Path ---
     if state.get("demo_mode"):
-        corrected = state["script_content"].replace('record["unit_price"]', 'record["price"]')
-        if 'record["unit_price"]' not in state["script_content"]:
+        corrected = state.get("script_content", "").replace('record["unit_price"]', 'record["price"]')
+        if 'record["unit_price"]' not in state.get("script_content", ""):
             corrected = (
-                state["script_content"]
+                state.get("script_content", "")
                 .replace("record['is_active']", "record.get('is_active', True)")
                 .replace("sessions = row['sessions']", "sessions = max(row['sessions'], 1)")
             )
-        print("   ✅ Patch generated (demo mode)")
+        print("   ✅ Code patch generated (demo mode)")
     else:
         raw = chat_completion([
             {
@@ -52,18 +107,18 @@ def patch_generator(state: HealerState) -> dict:
                 "role": "user",
                 "content": (
                     f"Fix this script based on the root cause analysis below.\n\n"
-                    f"## Original Script\n```python\n{state['script_content']}\n```\n\n"
-                    f"## Root Cause Analysis\n{state['rca_result']}\n\n"
+                    f"## Original Script\n```python\n{state.get('script_content', '')}\n```\n\n"
+                    f"## Root Cause Analysis\n{state.get('rca_result', '')}\n\n"
                     "Output the complete corrected Python script. "
                     "No markdown, no explanations — just the code."
                 ),
             },
         ])
         corrected = _strip_markdown_fences(raw)
-        print("   ✅ Patch generated")
+        print("   ✅ Code patch generated")
 
     # Compute unified diff for human review
-    orig_lines = state["script_content"].splitlines(keepends=True)
+    orig_lines = state.get("script_content", "").splitlines(keepends=True)
     fix_lines = corrected.splitlines(keepends=True)
     diff = difflib.unified_diff(
         orig_lines,

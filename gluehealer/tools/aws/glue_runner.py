@@ -98,12 +98,90 @@ class GlueJobRunner(JobRunner):
             code = e.response.get("Error", {}).get("Code", "Unknown")
             raise RuntimeError(f"Failed to update Glue job script ({code}): {e}") from e
 
-    def run_job(self, script_path: str) -> Tuple[bool, str, str]:
+    def update_job_resources(
+        self,
+        worker_type: str | None = None,
+        num_workers: int | None = None,
+        timeout: int | None = None,
+    ) -> None:
+        """Update Glue worker type, worker count, or timeout in AWS Glue."""
+        current_job = self.get_job_definition()
+        job_update = {
+            "Role": current_job.get("Role"),
+            "Command": current_job.get("Command", {}),
+            "DefaultArguments": current_job.get("DefaultArguments", {}),
+            "GlueVersion": current_job.get("GlueVersion", "4.0"),
+        }
+        if worker_type:
+            job_update["WorkerType"] = worker_type
+        elif "WorkerType" in current_job:
+            job_update["WorkerType"] = current_job["WorkerType"]
+
+        if num_workers:
+            job_update["NumberOfWorkers"] = num_workers
+        elif "NumberOfWorkers" in current_job:
+            job_update["NumberOfWorkers"] = current_job["NumberOfWorkers"]
+
+        if timeout:
+            job_update["Timeout"] = timeout
+        elif "Timeout" in current_job:
+            job_update["Timeout"] = current_job["Timeout"]
+
+        try:
+            self.glue.update_job(JobName=self.job_name, JobUpdate=job_update)
+            print(f"   ☁️ Auto-tuned Glue job '{self.job_name}' resources: WorkerType={job_update.get('WorkerType')}, Workers={job_update.get('NumberOfWorkers')}")
+        except ClientError as e:
+            code = e.response.get("Error", {}).get("Code", "Unknown")
+            raise RuntimeError(f"Failed to update Glue job resources ({code}): {e}") from e
+
+    def rollback(
+        self,
+        to_script_s3_path: str,
+        restore_worker_type: str | None = None,
+        restore_num_workers: int | None = None,
+    ) -> bool:
+        """Roll back Glue job configuration to a previous script version or baseline config."""
+        current_job = self.get_job_definition()
+        command = current_job.get("Command", {})
+        command["ScriptLocation"] = to_script_s3_path
+
+        job_update = {
+            "Role": current_job.get("Role"),
+            "Command": command,
+            "DefaultArguments": current_job.get("DefaultArguments", {}),
+            "GlueVersion": current_job.get("GlueVersion", "4.0"),
+        }
+        if restore_worker_type:
+            job_update["WorkerType"] = restore_worker_type
+        elif "WorkerType" in current_job:
+            job_update["WorkerType"] = current_job["WorkerType"]
+
+        if restore_num_workers:
+            job_update["NumberOfWorkers"] = restore_num_workers
+        elif "NumberOfWorkers" in current_job:
+            job_update["NumberOfWorkers"] = current_job["NumberOfWorkers"]
+
+        try:
+            self.glue.update_job(JobName=self.job_name, JobUpdate=job_update)
+            return True
+        except ClientError as e:
+            code = e.response.get("Error", {}).get("Code", "Unknown")
+            raise RuntimeError(f"Rollback failed for job '{self.job_name}' ({code}): {e}") from e
+
+    def run_job(self, script_path: str, config: dict | None = None) -> Tuple[bool, str, str]:
         """
-        Execute the Glue job with the given script path.
-        Points the job definition to script_path (if on S3), starts a run,
-        and polls until completion.
+        Execute the Glue job with the given script path and optional resource configuration.
+        Points the job definition to script_path (if on S3), applies resource scaling (if provided),
+        starts a run, and polls until completion.
         """
+        # If resource config is passed, auto-tune worker allocation
+        if config:
+            self.update_job_resources(
+                worker_type=config.get("WorkerType"),
+                num_workers=config.get("NumberOfWorkers"),
+                timeout=config.get("Timeout"),
+            )
+
         # If script_path is an S3 URI, update the job configuration
         if script_path.startswith("s3://"):
             self.update_job_script(script_path)
