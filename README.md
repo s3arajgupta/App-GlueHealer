@@ -1,262 +1,209 @@
 # 🩹 GlueHealer
 
-**Self-healing agentic AI system that automatically diagnoses, patches, and recovers failing AWS Glue ETL jobs.**
+**Autonomous, self-healing agentic AI system that diagnoses, patches, and recovers failing AWS Glue ETL jobs — with human approval, zero destructive overwrites, and stateful cyclic feedback.**
 
-GlueHealer uses a LangGraph-orchestrated multi-agent pipeline to fetch error logs, perform root cause analysis, generate code patches, and — with human approval — apply fixes and re-run failed jobs. It learns from historical patches to avoid repeating failed fixes and continuously improves over time.
+[![CI Test Suite](https://github.com/s3arajgupta/App-GlueHealer/actions/workflows/ci.yml/badge.svg)](https://github.com/s3arajgupta/App-GlueHealer/actions)
+![Python](https://img.shields.io/badge/python-3.11%20%7C%203.12%20%7C%203.14-blue)
+![LangGraph](https://img.shields.io/badge/Orchestration-LangGraph%20State%20Machine-orange)
+![AWS](https://img.shields.io/badge/AWS-Glue%20%7C%20S3%20%7C%20CloudWatch-232F3E?logo=amazon-aws)
+![UI](https://img.shields.io/badge/UI-Streamlit%20Control%20Center-FF4B4B?logo=streamlit)
+![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)
 
 ---
 
-## 🏗️ Architecture
+## 💡 The Problem & The Solution
+
+- **The Problem:** In enterprise data platforms, data engineers and on-call teams spend hours triaging trivial ETL pipeline failures caused by upstream schema drift (`KeyError`), dirty string casts (`ValueError`), or division by zero on empty partitions (`ZeroDivisionError`).
+- **The Solution:** GlueHealer autonomously ingests CloudWatch error logs, performs root-cause analysis (RCA), generates non-destructive unified diffs, presents them for human review, and re-runs the job. If a patch fails or is rejected with reviewer feedback, the **cyclic state machine** routes back to the Context Builder with cumulative history to produce a refined fix without hallucinating or repeating errors.
+
+---
+
+## ⚡ Quickstart: Showcase Commands
+
+Try GlueHealer immediately with zero setup or run it directly against your AWS account:
+
+### 1. 🎭 Instant 30-Second Showcase (Zero API Keys / Offline)
+Recruiters and interviewers can run the full agent pipeline in 0.5 seconds without any API keys or AWS setup:
+```bash
+python -m gluehealer demo --auto-approve
+```
+
+### 2. 🎨 Interactive Visual Control Center (Streamlit Dashboard)
+Launch the interactive web UI featuring pre-loaded failure scenarios (Schema Drift, Zero Division, Type Mismatch), syntax-highlighted diffs, and live Human Approval gates:
+```bash
+streamlit run gluehealer/ui/app.py
+# or
+python -m gluehealer.ui
+```
+
+### 3. 💻 Local Pipeline Self-Healing
+Run the live LLM healing pipeline against local Python ETL scripts:
+```bash
+# Interactive mode (prompts for [A]pprove / [R]eject / [V]iew diff)
+python -m gluehealer sample_jobs/broken_etl.py
+
+# Non-interactive / Headless mode
+python -m gluehealer sample_jobs/broken_etl.py --auto-approve
+```
+
+### 4. ☁️ AWS Cloud Production Mode
+Triage and heal live AWS Glue jobs running in your AWS account:
+```bash
+# Ingests CloudWatch logs, versions script in S3, retries Glue job
+python -m gluehealer --aws --job-name orders-bronze-to-silver
+
+# Target a specific historical failed run ID
+python -m gluehealer --aws --job-name orders-bronze-to-silver --run-id jr_8f39b1a03e
+```
+
+### 5. 🧪 Run Automated Test Suite
+```bash
+pytest tests/ -v
+```
+
+---
+
+## 🏗️ Architecture & Cyclic Workflow
 
 ![GlueHealer Architecture](<GlueHealer workflow.png>)
 
-### High-Level Flow
+### Cyclic State Flow
 
 ```
-Failed Glue Job → Context Builder → Error Analysis → Patch Generation → Human Review → Apply & Retry → ✅ Healed
-                       ↑                                    ↓ (rejected)        ↑          ↓ (failed)
-                       └────────────────────────────────────────────────────────┘──────────┘
+Failed Glue Job ──► Context Builder ──► RCA Analyzer ──► Patch Generator ──► Human Review Gate
+                          ▲                                                     │
+                          │            (❌ Rejected with Feedback)              │
+                          ├─────────────────────────────────────────────────────┘
+                          │
+                          │            (✅ Approved)
+                          │                   │
+                          │                   ▼
+                          │              Apply Patch (S3 v1.py)
+                          │                   │
+                          │                   ▼
+                          │              Retry Runner
+                          │                   │
+                          │ (❌ Failed)       ▼
+                          └─────────── [✅ Healed] or [🛑 Escalate on Max Retries]
 ```
 
-### Agents
+### Specialized Agents
 
 | Agent | Responsibility |
 |---|---|
-| **Orchestrator** | LangGraph workflow that coordinates all agents, manages state, and routes decisions |
-| **Context Builder** | Gathers all context needed for diagnosis — scripts from S3, error logs from CloudWatch, historical patches from state, and Glue job metadata |
-| **RCA / Error Analyzer** | Performs root cause analysis on the error logs using the gathered context. Identifies the failure cause and proposes a fix strategy |
-| **Patch Generator** | Produces a unified diff patch based on the RCA output. Consults historical patches to avoid repeating previously failed fixes |
-| **Human Approval** | Presents the patch to the user via the UI for review. The user can approve, reject (with feedback), or escalate |
-| **Apply Patch** | Creates a versioned copy of the Glue script in S3 with the patch applied. Maintains a rollback trail of previous versions |
-| **Retry Runner** | Re-runs the Glue job and monitors execution. Caps retries at a configurable maximum (default: 3) |
-| **Observability** | Logs metrics for every healing attempt — success/failure rates, time-to-fix, patch acceptance rates, and retry counts |
-
-### MCP Tool Servers
-
-| MCP Server | Purpose |
-|---|---|
-| **AWS S3 MCP** | Read original Glue scripts; write patched/versioned scripts |
-| **AWS CloudWatch MCP** | Fetch latest error logs and job run metrics |
-| **AWS Glue MCP** | Start job runs, poll job status, read job configurations |
-
-### State Management (LangGraph Built-in)
-
-GlueHealer leverages LangGraph's native state management to maintain context across healing cycles:
-
-- **Historical Patches** — Previously generated patches and their outcomes (success/failure), stored in the graph's context state and used by the RCA agent to avoid repeating ineffective fixes
-- **Script Versions** — Versioned S3 keys for every patched script, enabling instant rollback
-- **Job Healing History** — Per-job timeline of failures, patches applied, and current status
+| **Orchestrator** | LangGraph-style cyclic state machine managing state transitions and loopback routing |
+| **Context Builder** | Gathers script source, CloudWatch error logs, metadata, and historical patch critiques |
+| **RCA Analyzer** | Pinpoints exact fault lines, failure classifications, and prescribes a precise fix strategy |
+| **Patch Generator** | Produces syntactically valid Python code and generates colorized unified diffs |
+| **Human Approval** | Gatekeeper presenting diffs for approval or collecting reviewer feedback to guide revision |
+| **Apply Patch** | Saves non-destructive versioned scripts (`v1.py`, `v2.py`) to S3 or local storage |
+| **Retry Runner** | Re-executes the ETL job, monitors status, updates telemetry, and enforces retry caps |
 
 ---
 
-## 🔄 Detailed Workflow
+## 🔐 Production Safety Guardrails
 
-```mermaid
-flowchart TD
-    START([🚀 Failed Glue Job Detected]) --> CB[Context Builder Agent]
+| Guardrail | Engineering Implementation |
+|---|---|
+| **Zero In-Place Overwrites** | Original scripts are never modified. All patches are saved as versioned artifacts (`s3://.../gluehealer-versions/<job>/v<N>.py`). |
+| **Human-in-the-Loop Gate** | No code is executed without explicit human authorization (unless `--auto-approve` is passed). |
+| **Cyclic Critique Feedback** | Rejections or failed retries re-enter the Context Builder with cumulative history so the LLM learns from mistakes. |
+| **Retry & Cost Caps** | Enforces a hard limit on retries (default: 3) to prevent runaway cloud or LLM billing. |
+| **Instant Rollback** | Job configuration can be reverted to original S3 script paths at any point. |
 
-    CB -->|Fetches| S3[(AWS S3 MCP<br/>Read scripts)]
-    CB -->|Fetches| CW[(CloudWatch MCP<br/>Error logs)]
-    CB -->|Loads| HP[(Historical Patches<br/>from State)]
-    CB -->|Fetches| GM[(Glue MCP<br/>Job config)]
+---
 
-    CB --> RCA[RCA / Error Analyzer Agent]
-    RCA -->|Root cause + fix strategy| PG[Patch Generator Agent]
+## 📁 Repository Structure
 
-    PG --> HA{Human Approval Agent}
-
-    HA -->|✅ Approved| AP[Apply Patch Agent]
-    HA -->|❌ Rejected with feedback| CB
-
-    AP -->|Writes versioned script| S3W[(AWS S3 MCP<br/>Write patched script)]
-    AP --> RR[Retry Runner Agent]
-
-    RR -->|Start job| GLR[(AWS Glue MCP<br/>Run & monitor)]
-
-    RR -->|✅ Job Succeeded| DONE([✅ Healed])
-
-    RR -->|❌ Job Failed<br/>retries < max| CB
-
-    RR -->|❌ Max Retries Exceeded| STOP([🛑 Stopped / Escalate])
-
-    style START fill:#ff6b6b,color:#fff
-    style DONE fill:#51cf66,color:#fff
-    style STOP fill:#ffa94d,color:#fff
-    style HA fill:#748ffc,color:#fff
+```
+App-GlueHealer/
+├── .github/workflows/
+│   └── ci.yml                   # Automated Pytest CI workflow
+├── gluehealer/
+│   ├── __init__.py
+│   ├── __main__.py              # Unified CLI entrypoint (Local & AWS modes)
+│   ├── config.py                # Environment & LLM configuration
+│   ├── graph.py                 # LangGraph cyclic state machine
+│   ├── state.py                 # Typed shared state schema
+│   ├── agents/                  # Multi-agent specialists
+│   │   ├── context_builder.py   # Context aggregation & history
+│   │   ├── rca_analyzer.py      # Root cause diagnosis
+│   │   ├── patch_generator.py   # Unified diff & code repair
+│   │   ├── human_approval.py    # Human approval prompt gate
+│   │   ├── apply_patch.py       # Non-destructive versioning
+│   │   └── retry_runner.py      # Execution & retry monitoring
+│   ├── tools/
+│   │   ├── interface.py         # Abstract base classes (ScriptStore, JobRunner)
+│   │   ├── local/               # Local filesystem & subprocess execution
+│   │   │   ├── script_store.py
+│   │   │   └── job_runner.py
+│   │   └── aws/                 # AWS Cloud production adapters
+│   │       ├── s3_store.py        # S3 script reader & versioned writer
+│   │       ├── cloudwatch_logs.py # Log extractor & Spark noise filter
+│   │       └── glue_runner.py     # Glue start_job_run & polling
+│   └── ui/                      # Streamlit interactive application
+│       ├── __init__.py
+│       ├── __main__.py          # Launcher: python -m gluehealer.ui
+│       ├── app.py               # Streamlit control center
+│       └── scenarios.py         # Real-world mock incident scenarios
+├── sample_jobs/                 # Local demonstration ETL jobs
+│   ├── broken_etl.py            # KeyError: 'unit_price' schema drift
+│   └── broken_transform.py      # KeyError + ZeroDivisionError
+├── tests/                       # Pytest automated test suite
+│   ├── test_aws_adapters.py     # S3 URI parsing & CloudWatch noise extraction
+│   └── test_graph_state_machine.py # State machine transitions & escalation
+├── requirements.txt             # Project dependencies
+├── PHASEPLAN.md                 # Project roadmap & implementation log
+└── README.md                    # Project documentation
 ```
 
-### Key Design Decisions
-
-1. **Rejection & failure loops go through Context Builder**: When a human rejects a patch *or* a retried job still fails, the flow routes back to the **Context Builder Agent** — not directly to RCA. This ensures the system re-gathers fresh context (latest logs, updated scripts, new state) before re-analyzing, preventing stale data from poisoning the next attempt.
-
-2. **LangGraph state for historical patches**: Historical patches are stored in LangGraph's built-in context state, keeping patch history co-located with the agent runtime. The RCA agent reads this state to avoid repeating previously failed fixes — no external database required.
-
-3. **Observability agent** *(suggested addition)*: Instrument every healing attempt — success rates, time-to-fix, patch acceptance ratios, and retry distributions — for continuous improvement and operational visibility.
-
-4. **Escalation path** *(suggested addition)*: When max retries are exceeded, escalate to a human operator rather than silently stopping, ensuring no failure goes unnoticed.
-
-5. **Configuration-aware patching** *(suggested addition)*: Extend the RCA agent to consider not just script-level code changes but also Glue job configuration issues (memory allocation, timeout settings, connection parameters, IAM permissions).
-
 ---
 
-## 🧰 Tech Stack
-
-| Component | Technology |
-|---|---|
-| **Orchestration + State** | [LangGraph](https://github.com/langchain-ai/langgraph) — stateful, cyclic agent workflows with built-in context state |
-| **LLM** | Configurable — Claude, GPT-4, Gemini, or any LangChain-compatible model |
-| **Tool Layer** | [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) servers for AWS service access |
-| **User Interface** | React or Streamlit — job selection, patch review, approval/rejection |
-| **State Persistence** | LangGraph context state (in-memory, or checkpointed to PostgreSQL/SQLite for durability) |
-| **Observability** | CloudWatch Metrics + optional Datadog/Grafana dashboards |
-
----
-
-## 🚀 Getting Started
+## 🛠️ Setup & Configuration
 
 ### Prerequisites
-
 - Python 3.11+
-- AWS credentials with access to Glue, S3, CloudWatch
-- An LLM API key (OpenAI, Anthropic, or Google)
+- AWS credentials configured (via `~/.aws/credentials` or environment variables) for `--aws` mode
+- An OpenRouter, Anthropic, or OpenAI API key (for live LLM mode; offline demo requires no keys)
 
 ### Installation
-
 ```bash
-git clone https://github.com/your-org/GlueHealer.git
-cd GlueHealer
+git clone https://github.com/s3arajgupta/App-GlueHealer.git
+cd App-GlueHealer
 pip install -r requirements.txt
 ```
 
-### Configuration
-
+### Environment Settings (`.env`)
 ```bash
 cp .env.example .env
 ```
-
-Edit `.env` with your credentials:
-
+Edit `.env`:
 ```env
-# AWS
+# LLM Provider (OpenRouter OpenAI-compatible API)
+OPENROUTER_API_KEY=your_api_key_here
+LLM_MODEL=nvidia/nemotron-3.5-lightning:free
+
+# AWS Configuration (for --aws mode)
 AWS_REGION=us-east-1
 AWS_PROFILE=default
+S3_VERSIONS_PREFIX=gluehealer-versions
 
-# LLM
-LLM_PROVIDER=anthropic          # or openai, google
-LLM_API_KEY=your-api-key
-LLM_MODEL=claude-sonnet-4-20250514
-
-# GlueHealer
+# GlueHealer Tuning
 MAX_RETRIES=3
-REQUIRE_HUMAN_APPROVAL=true
-PATCH_HISTORY_TABLE=gluehealer-patches
-S3_VERSIONED_SCRIPTS_PREFIX=gluehealer/versions/
-```
-
-### Running
-
-```bash
-# Start the UI
-python -m gluehealer.ui
-
-# Or run headless for a specific job
-python -m gluehealer.heal --job-name my-failing-etl-job --run-id jr_abc123
+VERSIONS_DIR=job_versions
 ```
 
 ---
 
-## 📁 Project Structure
+## 🗺️ Project Roadmap
 
-```
-GlueHealer/
-├── README.md
-├── AgenticAI.drawio.png         # Architecture diagram
-├── requirements.txt
-├── .env.example
-├── gluehealer/
-│   ├── __init__.py
-│   ├── graph.py                 # LangGraph workflow definition
-│   ├── state.py                 # Shared state schema
-│   ├── config.py                # Configuration loader
-│   ├── agents/
-│   │   ├── __init__.py
-│   │   ├── context_builder.py   # Gathers scripts, logs, history
-│   │   ├── rca_analyzer.py      # Root cause analysis
-│   │   ├── patch_generator.py   # Generates unified diffs
-│   │   ├── human_approval.py    # Human-in-the-loop gate
-│   │   ├── apply_patch.py       # Applies patch, writes to S3
-│   │   ├── retry_runner.py      # Re-runs Glue job with monitoring
-│   │   └── observability.py     # Metrics and logging
-│   ├── mcp/
-│   │   ├── __init__.py
-│   │   ├── s3_server.py         # S3 read/write tool server
-│   │   ├── cloudwatch_server.py # CloudWatch log fetcher
-│   │   └── glue_server.py       # Glue job runner & monitor
-│   ├── ui/
-│   │   ├── __init__.py
-│   │   ├── app.py               # Streamlit / React entrypoint
-│   │   └── components/          # UI components
-│   └── utils/
-│       ├── __init__.py
-│       ├── diff.py              # Unified diff utilities
-│       └── versioning.py        # S3 script version management
-└── tests/
-    ├── __init__.py
-    ├── test_rca_analyzer.py
-    ├── test_patch_generator.py
-    └── test_retry_runner.py
-```
+- [x] **Phase 1: Local Agent Engine & Cyclic Graph** — State schema, local tools, LangGraph state machine, sample broken jobs.
+- [x] **Phase 2: AWS Cloud Backend Integration** — Boto3 adapters (`S3ScriptStore`, `CloudWatchLogFetcher`, `GlueJobRunner`), `--aws` CLI.
+- [x] **Phase 3: Interactive Visual Approval Dashboard** — Streamlit Control Center with mock scenarios, visual diff viewer, and instant offline demo.
+- [ ] **Phase 4: Autonomous Cloud Triggers & Rollback** — EventBridge event rule triggering headless healing Lambda upon `Glue Job FAILED`.
 
 ---
-
-## 🔐 Safety & Guardrails
-
-| Guardrail | Description |
-|---|---|
-| **Human-in-the-loop** | No patch is applied without explicit human approval (configurable) |
-| **Versioned scripts** | Every patched script is written to a new S3 key — originals are never overwritten |
-| **Retry cap** | Maximum retry count prevents infinite loops (default: 3) |
-| **Escalation** | Unresolvable failures are escalated to human operators |
-| **Historical dedup** | The RCA agent checks past patches to avoid re-applying known bad fixes |
-| **Rollback** | Any patched script can be rolled back to a previous version instantly |
-
----
-
-## 📊 Observability & Metrics
-
-GlueHealer tracks the following metrics for every healing attempt:
-
-| Metric | Description |
-|---|---|
-| `heal.attempt.count` | Total healing attempts |
-| `heal.success.rate` | Percentage of jobs successfully healed |
-| `heal.time_to_fix` | Time from failure detection to successful re-run |
-| `patch.acceptance.rate` | Percentage of patches approved by humans |
-| `patch.rejection.reasons` | Categorized rejection feedback for LLM improvement |
-| `retry.count.distribution` | How many retries jobs typically need |
-| `escalation.rate` | Percentage of jobs that exceed max retries |
-
----
-
-## 🗺️ Roadmap
-
-- [ ] **Core agents** — Context Builder, RCA Analyzer, Patch Generator
-- [ ] **MCP servers** — S3, CloudWatch, Glue integrations
-- [ ] **LangGraph orchestration** — Stateful workflow with conditional routing
-- [ ] **Human approval UI** — Streamlit-based patch review interface
-- [ ] **Retry & rollback** — Automated retries with version rollback
-- [ ] **Observability dashboard** — Grafana/CloudWatch metrics
-- [ ] **Auto-mode** — Optional bypass of human approval for high-confidence patches
-- [ ] **Multi-job healing** — Parallel healing of multiple failing jobs
-- [ ] **Slack/Teams notifications** — Alert channels for approvals and escalations
-- [ ] **Fine-tuned models** — Train on historical patches for domain-specific accuracy
-
----
-
-## 🤝 Contributing
-
-Contributions are welcome! Please open an issue or PR.
 
 ## 📄 License
 
-MIT
+Distributed under the [MIT License](LICENSE).

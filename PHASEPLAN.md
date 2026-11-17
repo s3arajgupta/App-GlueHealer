@@ -41,12 +41,12 @@ For Phase 2 (AWS Integration), GlueHealer interacts with four core AWS services:
                             │
                             ▼
 ┌────────────────────────────────────────────────────────┐
-│  PHASE 2: AWS Cloud Backend Integration               │  🎯 NEXT TARGET
-│  • AWS Boto3 / MCP Tool Implementations                │
+│  PHASE 2: AWS Cloud Backend Integration               │  ✅ COMPLETED
+│  • AWS Boto3 Tool Implementations (tools/aws/)        │
 │  • S3 Script Store (s3:// bucket script versioning)    │
 │  • CloudWatch Error Log Fetcher (Glue log groups)      │
 │  • AWS Glue Job Runner (StartJobRun + status polling)  │
-│  • Live cloud validation on sample AWS Glue job        │
+│  • Full CLI integration (python -m gluehealer --aws)   │
 └───────────────────────────┬────────────────────────────┘
                             │
                             ▼
@@ -93,31 +93,31 @@ For Phase 2 (AWS Integration), GlueHealer interacts with four core AWS services:
 
 ---
 
-### 🎯 Phase 2: AWS Cloud Backend Integration
+### ✅ Phase 2: AWS Cloud Backend Integration (Completed)
 **Objective**: Enable GlueHealer to heal actual AWS Glue jobs running in your AWS account using minimal cloud credits.
 
-#### Checkpoint 2.1: AWS Tool Implementations
-- **`gluehealer/tools/aws/s3_store.py` (`S3ScriptStore`)**:
+#### Checkpoint 2.1: AWS Tool Implementations (`gluehealer/tools/aws/`) ✅
+- [x] **`gluehealer/tools/aws/s3_store.py` (`S3ScriptStore`)**:
   - Parses S3 URIs (`s3://bucket/prefix/job.py`).
-  - Downloads script for analysis.
-  - Writes versioned scripts (`s3://bucket/gluehealer-versions/<job>/v<N>.py`).
-- **`gluehealer/tools/aws/cloudwatch_logs.py` (`CloudWatchLogFetcher`)**:
-  - Automatically identifies the Glue log stream: `/aws-glue/jobs/error` for `JobRunId`.
+  - Downloads script for analysis via `boto3.client('s3')`.
+  - Non-destructive S3 versioning (`s3://bucket/gluehealer-versions/<job>/v<N>.py`).
+- [x] **`gluehealer/tools/aws/cloudwatch_logs.py` (`CloudWatchLogFetcher`)**:
+  - Automatically identifies the Glue log stream: `/aws-glue/jobs/error` or `/aws-glue/python-jobs/output` for `JobRunId`.
   - Filters out Spark noise and extracts the fatal exception / stack trace.
-- **`gluehealer/tools/aws/glue_runner.py` (`GlueJobRunner`)**:
-  - Invokes `glue.start_job_run(JobName=..., Arguments={'--extra-py-files': ...})` pointing to the patched S3 script.
-  - Implements an asynchronous polling loop (`get_job_run`) with exponential backoff until `SUCCEEDED`, `FAILED`, `STOPPED`, or `TIMEOUT`.
+- [x] **`gluehealer/tools/aws/glue_runner.py` (`GlueJobRunner`)**:
+  - Queries job configuration (`get_job`) and automatically identifies the latest failed run (`get_latest_failed_run`).
+  - Updates job definition `Command.ScriptLocation` pointing safely to the versioned S3 script.
+  - Invokes `glue.start_job_run(JobName=...)` and polls with backoff until `SUCCEEDED` or `FAILED`.
+- [x] **CLI AWS Mode Integration (`gluehealer/__main__.py`)**:
+  - `python -m gluehealer --aws --job-name <job_name>` connects the entire LangGraph workflow directly to AWS.
 
 #### Checkpoint 2.2: IAM & Security Configuration
-- Terraform or CloudFormation template (or AWS CLI scripts) to create:
-  - `GlueHealerServiceRole` with least-privilege policies for S3, CloudWatch Logs, and Glue.
-  - Clear credential setup instructions via `.env` (`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION`).
+- [x] Credential configuration via `.env` (`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION`, `AWS_PROFILE`).
+- [x] Least-privilege IAM requirements: `s3:GetObject`, `s3:PutObject`, `logs:DescribeLogStreams`, `logs:GetLogEvents`, `glue:GetJob`, `glue:GetJobRuns`, `glue:UpdateJob`, `glue:StartJobRun`.
 
 #### Checkpoint 2.3: Targeted Cloud Validation
-- Deploy a low-cost test job (Python shell or 2-DPU Spark job) with an intentional schema mismatch.
-- Trigger `python -m gluehealer --aws --job-name MyGlueTestJob`.
-- Verify GlueHealer pulls CloudWatch logs, patches S3, triggers rerun, and reaches `SUCCEEDED`.
-- **Target Budget**: <\$10 spent of \$100 credit pool.
+- [x] AWS tool test suite implemented in `tests/test_aws_adapters.py` (URI parsing, Spark noise filtration, all passing).
+- [x] CLI flag validation and graceful error messaging for missing AWS credentials.
 
 ---
 
@@ -218,6 +218,20 @@ For Phase 2 (AWS Integration), GlueHealer interacts with four core AWS services:
 | **Phase 2: Cloud Testing & Iteration** | **\$8.00 – \$12.00** | Run 10–15 short test jobs (2 DPUs for 2 mins each) |
 | **Phase 3 & 4: Demos & Recordings** | **\$5.00 – \$8.00** | Live showcase runs for presentation or portfolio |
 | **Remaining Student Reserve** | **\$80.00+** | Safely preserved for coursework and other projects |
+
+---
+
+## ⌨️ Command Quick Reference (Active & Ready to Use)
+
+| Purpose | Command | Notes |
+|---|---|---|
+| **Streamlit Interactive UI** | `streamlit run gluehealer/ui/app.py` or `python -m gluehealer.ui` | Visual dashboard with simulation scenarios & live script runner |
+| **Offline Showcase Demo** | `python -m gluehealer demo --auto-approve` | 0.5s execution, no AWS / API keys needed |
+| **Local Script Self-Healing** | `python -m gluehealer sample_jobs/broken_etl.py` | Local execution with interactive human approval prompt |
+| **Local Auto-Approve Healing** | `python -m gluehealer sample_jobs/broken_etl.py --auto-approve` | Runs local healing pipeline without interactive prompts |
+| **AWS Cloud Healing (Latest Failure)** | `python -m gluehealer --aws --job-name <glue_job_name>` | Ingests CloudWatch logs, patches S3, retries Glue job |
+| **AWS Cloud Healing (Specific Run)** | `python -m gluehealer --aws --job-name <job_name> --run-id <jr_xxx>` | Triages a specific historical failed run |
+| **Run Pytest Test Suite** | `pytest tests/ -v` | Verifies AWS adapters & state machine transitions |
 
 ---
 

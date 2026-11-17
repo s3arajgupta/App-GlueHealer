@@ -25,6 +25,11 @@ MAX_TOKENS = int(os.getenv("MAX_TOKENS", "4096"))
 MAX_RETRIES = int(os.getenv("MAX_RETRIES", "3"))
 VERSIONS_DIR = os.getenv("VERSIONS_DIR", "job_versions")
 
+# --- AWS Cloud Settings ---
+AWS_REGION = os.getenv("AWS_REGION", "us-east-1")
+AWS_PROFILE = os.getenv("AWS_PROFILE", None)
+S3_VERSIONS_PREFIX = os.getenv("S3_VERSIONS_PREFIX", "gluehealer-versions")
+
 # --- Retry settings ---
 API_MAX_RETRIES = int(os.getenv("API_MAX_RETRIES", "2"))
 API_RETRY_BASE_DELAY = float(os.getenv("API_RETRY_BASE_DELAY", "2.0"))

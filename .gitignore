@@ -15,3 +15,6 @@ sample_jobs/output/
 # Virtual env
 venv/
 .venv/
+
+# Testing
+.pytest_cache/
