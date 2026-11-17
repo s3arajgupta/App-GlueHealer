@@ -125,11 +125,7 @@ with st.sidebar:
     st.title("🩹 GlueHealer")
     st.caption("Agentic Self-Healing for AWS Glue ETL Pipelines")
 
-    col_gh, col_spec = st.columns(2)
-    with col_gh:
-        st.link_button("⭐ GitHub", "https://github.com/s3arajgupta/App-GlueHealer", use_container_width=True)
-    with col_spec:
-        st.link_button("📐 Specs", "https://github.com/s3arajgupta/App-GlueHealer/blob/main/PHASEPLAN.md", use_container_width=True)
+    st.link_button("⭐ View on GitHub", "https://github.com/s3arajgupta/App-GlueHealer", use_container_width=True)
 
     st.divider()
 
@@ -239,7 +235,6 @@ with col_head_left:
 with col_head_right:
     st.write("")
     st.link_button("📂 View on GitHub", "https://github.com/s3arajgupta/App-GlueHealer", use_container_width=True)
-    st.link_button("🏗️ Architecture Docs", "https://github.com/s3arajgupta/App-GlueHealer/blob/main/PHASEPLAN.md", use_container_width=True)
 
 st.write("")
 
@@ -261,8 +256,6 @@ with st.expander("🏗️ Architecture & Multi-Agent Flow Diagram", expanded=Fal
         1. **Zero Destructive Overwrites:** Original ETL scripts are never modified in place. Versions are saved to `gluehealer-versions/<job>/v<N>.py` with rollback pointers.
         2. **Stateful Re-entry:** When a patch fails or is rejected with human feedback, execution routes back to the **Context Builder** (not directly to RCA), ensuring fresh context is re-gathered with cumulative history.
         3. **Human-in-the-Loop Gate:** Autonomous diagnosis paired with mandatory engineer review before deployment.
-        
-        👉 For full technical specifications and phase planning, see the [Architecture Vision & Phase Plan](https://github.com/s3arajgupta/App-GlueHealer/blob/main/PHASEPLAN.md).
         """
     )
 
@@ -541,8 +534,7 @@ st.markdown(
     """
     <div style="text-align: center; color: #94A3B8; font-size: 0.85rem;">
         GlueHealer — Autonomous Self-Healing Agent for AWS Glue Pipelines • MIT License • 
-        <a href="https://github.com/s3arajgupta/App-GlueHealer" target="_blank" style="color: #2563EB; text-decoration: none; font-weight: 600;">GitHub Repository</a> • 
-        <a href="https://github.com/s3arajgupta/App-GlueHealer/blob/main/PHASEPLAN.md" target="_blank" style="color: #2563EB; text-decoration: none; font-weight: 600;">Architecture Vision & Phase Plan</a>
+        <a href="https://github.com/s3arajgupta/App-GlueHealer" target="_blank" style="color: #2563EB; text-decoration: none; font-weight: 600;">GitHub Repository</a>
     </div>
     """,
     unsafe_allow_html=True,
