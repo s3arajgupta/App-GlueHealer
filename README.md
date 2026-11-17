@@ -31,10 +31,21 @@ python -m gluehealer demo --auto-approve
 ### 2. 🎨 Interactive Visual Control Center (Streamlit Dashboard)
 Launch the interactive web UI featuring pre-loaded failure scenarios (Schema Drift, Zero Division, Type Mismatch), syntax-highlighted diffs, and live Human Approval gates:
 ```bash
-streamlit run gluehealer/ui/app.py
+streamlit run streamlit_app.py
 # or
 python -m gluehealer.ui
 ```
+
+#### 🌐 Deploy to Streamlit Community Cloud (Free 1-Click Hosting)
+You can host this live interactive dashboard for recruiters and interviewers for free on [Streamlit Community Cloud](https://share.streamlit.io/):
+1. Push your repository to GitHub: `git push origin main`
+2. Go to [share.streamlit.io](https://share.streamlit.io/) and click **New App**
+3. Select your repository, branch `main`, and main file path `streamlit_app.py`
+4. *(Optional)* In **App Settings ➔ Secrets**, paste:
+   ```toml
+   OPENROUTER_API_KEY = "your-key-here"
+   ```
+5. Click **Deploy!** — your portfolio now has a live, publicly accessible URL.
 
 ### 3. 💻 Local Pipeline Self-Healing
 Run the live LLM healing pipeline against local Python ETL scripts:

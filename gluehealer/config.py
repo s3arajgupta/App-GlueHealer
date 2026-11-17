@@ -18,6 +18,18 @@ load_dotenv()
 # --- LLM ---
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
 LLM_MODEL = os.getenv("LLM_MODEL", "nvidia/nemotron-3.5-lightning:free")
+
+# Support Streamlit Community Cloud Secrets (st.secrets)
+if not OPENROUTER_API_KEY:
+    try:
+        import streamlit as _st
+        if hasattr(_st, "secrets") and "OPENROUTER_API_KEY" in _st.secrets:
+            OPENROUTER_API_KEY = _st.secrets["OPENROUTER_API_KEY"]
+        if hasattr(_st, "secrets") and "LLM_MODEL" in _st.secrets and not os.getenv("LLM_MODEL"):
+            LLM_MODEL = _st.secrets["LLM_MODEL"]
+    except Exception:
+        pass
+
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 MAX_TOKENS = int(os.getenv("MAX_TOKENS", "4096"))
 

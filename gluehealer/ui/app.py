@@ -173,16 +173,27 @@ with st.sidebar:
 
     else:
         st.subheader("Live Script Runner")
+        project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
         sample_scripts = {
-            "sample_jobs/broken_etl.py": "Broken ETL (KeyError 'unit_price')",
-            "sample_jobs/broken_transform.py": "Broken Transform (KeyError & ZeroDivisionError)",
+            os.path.join(project_root, "sample_jobs", "broken_etl.py"): "Broken ETL (KeyError 'unit_price')",
+            os.path.join(project_root, "sample_jobs", "broken_transform.py"): "Broken Transform (KeyError & ZeroDiv)",
         }
         selected_script = st.selectbox(
             "Choose Local Script to Heal",
             options=list(sample_scripts.keys()),
-            format_func=lambda x: f"{x} - {sample_scripts[x]}",
+            format_func=lambda x: sample_scripts[x],
         )
         auto_approve_live = st.checkbox("Auto-Approve Patches", value=False)
+
+        custom_key = st.text_input(
+            "OpenRouter API Key (Optional)",
+            type="password",
+            placeholder="sk-or-v1-...",
+            help="Provide your key if not configured in environment or Streamlit secrets.",
+        )
+        if custom_key:
+            import gluehealer.config as gh_config
+            gh_config.OPENROUTER_API_KEY = custom_key.strip()
 
     st.divider()
 
@@ -219,6 +230,19 @@ st.markdown(
     unsafe_allow_html=True,
 )
 st.write("")
+
+with st.expander("ℹ️ How to Explore This Interactive Demo (Quick Guide)", expanded=False):
+    st.markdown(
+        """
+        **GlueHealer** autonomously detects, diagnoses, and patches failing AWS Glue ETL jobs:
+        1. **Select an Incident Scenario** in the left sidebar (e.g. *Orders Schema Drift* or *AdTech ZeroDivision*).
+        2. Click **🚀 Trigger Agent Diagnosis** to inspect the CloudWatch error log and LLM Root Cause Analysis.
+        3. Review the color-coded **Unified Diff**.
+        4. Test the **Human Approval Gate**:
+           - Click **Approve & Deploy Patch** to simulate creating `v1.py` in S3 and verifying the healed run.
+           - OR enter custom feedback (e.g. *"Use .get() with fallback"*) and click **Reject & Request Revision** to watch the **cyclic state machine** loop back and produce a revised `v2.py` patch incorporating your critique!
+        """
+    )
 
 # ==============================================================================
 # SIMULATION / SHOWCASE MODE
